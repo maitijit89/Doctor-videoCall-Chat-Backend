@@ -1,0 +1,147 @@
+import { Server as HttpServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
+import { AuthenticatedSocket } from '../types/socket.types.js';
+import { RoomParticipant } from '../types/room.types.js';
+import { SOCKET_EVENTS } from '../constants/events.js';
+import { socketAuthMiddleware } from './socketAuth.middleware.js';
+import { registerSignalingHandlers } from './signaling.handler.js';
+import { registerChatHandlers } from './chat.handler.js';
+import { roomService } from '../services/room.service.js';
+import { mainBackendSyncService } from '../services/mainBackendSync.service.js';
+import { env } from '../config/env.js';
+import { logger } from '../config/logger.js';
+
+export const initializeSocketIO = (httpServer: HttpServer): SocketIOServer => {
+  const allowedOrigins =
+    env.CORS_ORIGIN === '*'
+      ? '*'
+      : env.CORS_ORIGIN.split(',').map((origin) => origin.trim());
+
+  const io = new SocketIOServer(httpServer, {
+    cors: {
+      origin: allowedOrigins,
+      methods: ['GET', 'POST'],
+      credentials: true,
+    },
+    pingTimeout: 60000,
+    pingInterval: 25000,
+  });
+
+  // Apply Socket Authentication Middleware
+  io.use(socketAuthMiddleware);
+
+  io.on('connection', (socket: AuthenticatedSocket) => {
+    const user = socket.user;
+    logger.info(`🔌 Client connected: ${socket.id} (${user?.name} - ${user?.role})`);
+
+    /**
+     * JOIN CONSULTATION ROOM
+     */
+    socket.on(SOCKET_EVENTS.JOIN_ROOM, ({ roomId }: { roomId: string }) => {
+      if (!roomId || !user) {
+        socket.emit(SOCKET_EVENTS.ERROR, { message: 'Invalid room join payload' });
+        return;
+      }
+
+      // Check if room exists; if not, create it dynamically
+      let room = roomService.getRoom(roomId);
+      if (!room) {
+        room = roomService.createRoom({
+          roomId,
+          doctorId: user.role === 'doctor' ? user.id : 'pending_doctor',
+          patientId: user.role === 'patient' ? user.id : 'pending_patient',
+        });
+      }
+
+      // Check room capacity (consultation is primarily 1 doctor + 1 patient = 2 active peers)
+      if (room.participants.size >= 4) {
+        socket.emit(SOCKET_EVENTS.ROOM_FULL, { message: 'Consultation room is currently full' });
+        return;
+      }
+
+      socket.roomId = roomId;
+      socket.join(roomId);
+
+      const participant: RoomParticipant = {
+        odId: socket.id,
+        userId: user.id,
+        name: user.name,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        joinedAt: new Date(),
+        isAudioMuted: false,
+        isVideoStopped: false,
+        isScreenSharing: false,
+      };
+
+      const updatedRoom = roomService.addParticipant(roomId, participant);
+
+      logger.info(`User ${user.name} joined room ${roomId}. Total participants: ${updatedRoom.participants.size}`);
+
+      // Notify the joining user with current room state and existing participants
+      socket.emit(SOCKET_EVENTS.JOIN_ROOM, {
+        roomId,
+        participants: Array.from(updatedRoom.participants.values()),
+        status: updatedRoom.status,
+      });
+
+      // Broadcast to other participants that a new peer joined
+      socket.to(roomId).emit(SOCKET_EVENTS.USER_JOINED, {
+        participant,
+        roomId,
+      });
+    });
+
+    /**
+     * LEAVE CONSULTATION ROOM
+     */
+    socket.on(SOCKET_EVENTS.LEAVE_ROOM, ({ roomId }: { roomId: string }) => {
+      if (!roomId) return;
+
+      const removedParticipant = roomService.removeParticipant(roomId, socket.id);
+      socket.leave(roomId);
+      socket.roomId = undefined;
+
+      if (removedParticipant) {
+        logger.info(`User ${removedParticipant.name} left room ${roomId}`);
+        socket.to(roomId).emit(SOCKET_EVENTS.USER_LEFT, {
+          userId: removedParticipant.userId,
+          socketId: socket.id,
+          roomId,
+        });
+      }
+    });
+
+    // Register WebRTC Signaling Handlers
+    registerSignalingHandlers(io, socket);
+
+    // Register Consultation Chat Handlers
+    registerChatHandlers(io, socket);
+
+    /**
+     * DISCONNECT CLEANUP
+     */
+    socket.on('disconnect', async (reason) => {
+      logger.info(`Client disconnected: ${socket.id} (${reason})`);
+
+      if (socket.roomId) {
+        const removed = roomService.removeParticipant(socket.roomId, socket.id);
+        if (removed) {
+          socket.to(socket.roomId).emit(SOCKET_EVENTS.USER_LEFT, {
+            userId: removed.userId,
+            socketId: socket.id,
+            roomId: socket.roomId,
+          });
+
+          // If room ended upon participant departure, sync with main backend
+          const currentRoom = roomService.getRoom(socket.roomId);
+          if (currentRoom && currentRoom.status === 'ended') {
+            await mainBackendSyncService.notifyCallEnded(currentRoom);
+          }
+        }
+      }
+    });
+  });
+
+  return io;
+};
