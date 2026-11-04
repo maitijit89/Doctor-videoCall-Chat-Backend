@@ -19,3 +19,4 @@ export const getHealth = (_req: Request, res: Response): void => {
 
   res.status(StatusCodes.OK).json(ApiResponse.success(healthData, 'Service is healthy'));
 };
+

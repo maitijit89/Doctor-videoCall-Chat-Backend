@@ -38,3 +38,4 @@ export const SOCKET_EVENTS = {
 } as const;
 
 export type SocketEventType = typeof SOCKET_EVENTS[keyof typeof SOCKET_EVENTS];
+

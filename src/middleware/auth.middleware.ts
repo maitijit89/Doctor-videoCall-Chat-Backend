@@ -46,3 +46,4 @@ export const optionalAuthenticateJwt = (req: Request, _res: Response, next: Next
   }
   next();
 };
+

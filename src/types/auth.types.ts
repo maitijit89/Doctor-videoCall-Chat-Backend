@@ -11,3 +11,4 @@ export interface AuthUser {
 export interface AuthenticatedRequestPayload {
   user: AuthUser;
 }
+

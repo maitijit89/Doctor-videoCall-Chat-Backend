@@ -25,3 +25,4 @@ export class ApiResponse<T = any> {
     return new ApiResponse<T>(StatusCodes.CREATED, message, data);
   }
 }
+

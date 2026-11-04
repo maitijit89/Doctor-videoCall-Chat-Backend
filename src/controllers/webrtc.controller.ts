@@ -9,3 +9,4 @@ export const getIceServers = (_req: Request, res: Response): void => {
     ApiResponse.success({ iceServers }, 'ICE servers retrieved successfully')
   );
 };
+

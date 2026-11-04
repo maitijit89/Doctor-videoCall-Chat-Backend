@@ -32,3 +32,4 @@ export interface MediaTogglePayload {
   type: 'audio' | 'video';
   enabled: boolean;
 }
+

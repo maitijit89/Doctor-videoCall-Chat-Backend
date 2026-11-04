@@ -54,3 +54,4 @@ export const socketAuthMiddleware = (
     next(new Error(`Socket authentication error: ${error.message}`));
   }
 };
+

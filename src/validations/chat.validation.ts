@@ -15,3 +15,4 @@ export const getMessagesQuerySchema = z.object({
       .transform((val) => (val ? parseInt(val, 10) : 1)),
   }),
 });
+

@@ -38,3 +38,4 @@ export interface CreateRoomDTO {
   doctorName?: string;
   patientName?: string;
 }
+

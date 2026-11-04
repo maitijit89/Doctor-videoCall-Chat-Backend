@@ -25,3 +25,4 @@ export interface SendMessageDTO {
   text: string;
   attachments?: ChatAttachment[];
 }
+

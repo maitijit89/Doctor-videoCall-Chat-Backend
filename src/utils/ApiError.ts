@@ -48,3 +48,4 @@ export class ApiError extends Error {
     return new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, message, undefined, false);
   }
 }
+
