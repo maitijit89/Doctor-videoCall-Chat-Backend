@@ -130,3 +130,4 @@ The codebase strictly follows a **layered clean architecture**. Cross-layer leak
 3. **Docker Execution**:
    - Containers must run as non-root user (`USER node` in Dockerfile).
    - Container builds must be multi-staged (builder -> runner) to keep production images lightweight (<150MB).
+

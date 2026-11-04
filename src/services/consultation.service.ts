@@ -1,6 +1,8 @@
 import { roomService } from './room.service.js';
 import { zegoService } from './zego.service.js';
 import { cometChatService } from './cometchat.service.js';
+import { ConsultationModel } from '../models/consultation.model.js';
+import { CallLogModel } from '../models/callLog.model.js';
 import { logger } from '../config/logger.js';
 
 export interface CreateConsultationSessionDTO {
@@ -42,16 +44,16 @@ export interface ConsultationSessionResponse {
 
 class ConsultationService {
   /**
-   * Initializes full Video Call (ZEGOCLOUD) & Chat (COMETCHAT) session after a doctor is booked
+   * Initializes full Video Call (ZEGOCLOUD) & Chat (COMETCHAT) session and persists to MongoDB
    */
   public async createConsultationSession(
     dto: CreateConsultationSessionDTO
   ): Promise<ConsultationSessionResponse> {
     const roomId = `room_${dto.bookingId}`;
-    logger.info(`Creating post-booking consultation session for booking ${dto.bookingId}`);
+    logger.info(`🍃 MongoDB: Creating post-booking consultation session for booking ${dto.bookingId}`);
 
-    // 1. Initialize room in RoomService
-    roomService.createRoom({
+    // 1. Initialize room in MongoDB & Cache
+    await roomService.createRoom({
       roomId,
       appointmentId: dto.bookingId,
       doctorId: dto.doctorId,
@@ -73,7 +75,35 @@ class ConsultationService {
       dto.doctorName
     );
 
-    // 4. Send welcoming initial consultation message via CometChat
+    // 4. Update MongoDB record with Zego & CometChat metadata
+    await ConsultationModel.updateOne(
+      { roomId },
+      {
+        doctorAvatar: dto.doctorAvatar,
+        patientAvatar: dto.patientAvatar,
+        zegoRoomId: roomId,
+        cometChatConversationId: `${dto.patientId}_${dto.doctorId}`,
+        metadata: {
+          scheduledAt: dto.scheduledAt,
+          zegoAppId: zegoCreds.appId,
+          cometChatRegion: cometChatData.userCredentials.region,
+        },
+      }
+    );
+
+    // 5. Create initial audit log in MongoDB
+    await CallLogModel.create({
+      roomId,
+      bookingId: dto.bookingId,
+      doctorId: dto.doctorId,
+      patientId: dto.patientId,
+      eventType: 'initiated',
+      details: {
+        scheduledAt: dto.scheduledAt,
+      },
+    });
+
+    // 6. Send welcoming initial consultation message via CometChat
     const initialGreeting = `Hello ${dto.patientName}! Your consultation chat with Dr. ${dto.doctorName} is active for Appointment #${dto.bookingId}. You can communicate and share health records here.`;
     await cometChatService.sendTextMessage(dto.doctorId, dto.patientId, initialGreeting);
 
@@ -124,4 +154,3 @@ class ConsultationService {
 }
 
 export const consultationService = new ConsultationService();
-

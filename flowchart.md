@@ -198,3 +198,4 @@ flowchart TD
     NotifyCore --> CoreBackend["🌐 Main Full-Stack Backend receives webhook"]
     CoreBackend --> BillingRecorded["Doctor Earnings & Patient Invoice Generated"]
 ```
+

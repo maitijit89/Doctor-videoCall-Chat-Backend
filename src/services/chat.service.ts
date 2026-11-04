@@ -1,18 +1,18 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ChatMessage, SendMessageDTO } from '../types/chat.types.js';
 import { AuthUser } from '../types/auth.types.js';
+import { ChatMessageModel } from '../models/chatMessage.model.js';
 import { logger } from '../config/logger.js';
 
 class ChatService {
-  // Key: roomId, Value: array of ChatMessage
-  private messages: Map<string, ChatMessage[]> = new Map();
-
   /**
-   * Save a new message in the room
+   * Save a new message in MongoDB
    */
-  public saveMessage(dto: SendMessageDTO, user: AuthUser): ChatMessage {
-    const message: ChatMessage = {
-      id: uuidv4(),
+  public async saveMessage(dto: SendMessageDTO, user: AuthUser): Promise<ChatMessage> {
+    const messageId = uuidv4();
+
+    // Persist to MongoDB
+    const doc = await ChatMessageModel.create({
       roomId: dto.roomId,
       senderId: user.id,
       senderName: user.name,
@@ -20,39 +20,56 @@ class ChatService {
       text: dto.text,
       attachments: dto.attachments || [],
       isRead: false,
-      createdAt: new Date(),
+    });
+
+    const message: ChatMessage = {
+      id: doc._id.toString() || messageId,
+      roomId: doc.roomId,
+      senderId: doc.senderId,
+      senderName: doc.senderName,
+      senderRole: doc.senderRole,
+      text: doc.text,
+      attachments: doc.attachments,
+      isRead: doc.isRead,
+      createdAt: doc.createdAt,
     };
 
-    if (!this.messages.has(dto.roomId)) {
-      this.messages.set(dto.roomId, []);
-    }
-
-    const roomMsgs = this.messages.get(dto.roomId)!;
-    roomMsgs.push(message);
-
-    logger.debug(`Chat message saved in room ${dto.roomId} from ${user.name}`);
+    logger.debug(`🍃 MongoDB: Chat message saved in room ${dto.roomId} from ${user.name}`);
     return message;
   }
 
   /**
-   * Get messages for a consultation room with pagination
+   * Get messages for a consultation room with MongoDB pagination
    */
-  public getMessages(
+  public async getMessages(
     roomId: string,
     limit: number = 50,
     page: number = 1
-  ): { messages: ChatMessage[]; total: number; page: number; totalPages: number } {
-    const roomMsgs = this.messages.get(roomId) || [];
-    const total = roomMsgs.length;
+  ): Promise<{ messages: ChatMessage[]; total: number; page: number; totalPages: number }> {
+    const total = await ChatMessageModel.countDocuments({ roomId });
     const totalPages = Math.ceil(total / limit) || 1;
+    const skip = Math.max(0, (page - 1) * limit);
 
-    // Return messages chronologically, paginated from newest backwards
-    const startIndex = Math.max(0, total - page * limit);
-    const endIndex = total - (page - 1) * limit;
-    const paginated = roomMsgs.slice(startIndex, endIndex);
+    const docs = await ChatMessageModel.find({ roomId })
+      .sort({ createdAt: 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const messages: ChatMessage[] = docs.map((doc) => ({
+      id: (doc as any)._id.toString(),
+      roomId: doc.roomId,
+      senderId: doc.senderId,
+      senderName: doc.senderName,
+      senderRole: doc.senderRole,
+      text: doc.text,
+      attachments: doc.attachments,
+      isRead: doc.isRead,
+      createdAt: doc.createdAt,
+    }));
 
     return {
-      messages: paginated,
+      messages,
       total,
       page,
       totalPages,
@@ -60,22 +77,16 @@ class ChatService {
   }
 
   /**
-   * Mark all unread messages in a room as read by recipient
+   * Mark all unread messages in a room as read by recipient in MongoDB
    */
-  public markAsRead(roomId: string, readerUserId: string): number {
-    const roomMsgs = this.messages.get(roomId) || [];
-    let updatedCount = 0;
+  public async markAsRead(roomId: string, readerUserId: string): Promise<number> {
+    const result = await ChatMessageModel.updateMany(
+      { roomId, senderId: { $ne: readerUserId }, isRead: false },
+      { $set: { isRead: true, readAt: new Date() } }
+    );
 
-    roomMsgs.forEach((msg) => {
-      if (msg.senderId !== readerUserId && !msg.isRead) {
-        msg.isRead = true;
-        updatedCount++;
-      }
-    });
-
-    return updatedCount;
+    return result.modifiedCount;
   }
 }
 
 export const chatService = new ChatService();
-

@@ -15,7 +15,7 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
   /**
    * INITIATE CALL (Offer)
    */
-  socket.on(SOCKET_EVENTS.CALL_USER, (payload: SignalingOfferPayload) => {
+  socket.on(SOCKET_EVENTS.CALL_USER, async (payload: SignalingOfferPayload) => {
     const { roomId, sdp } = payload;
     const user = socket.user;
 
@@ -24,13 +24,13 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
       return;
     }
 
-    const room = roomService.getRoom(roomId);
+    const room = await roomService.getRoom(roomId);
     if (!room) {
       socket.emit(SOCKET_EVENTS.ERROR, { message: `Room ${roomId} not found` });
       return;
     }
 
-    roomService.updateStatus(roomId, 'calling');
+    await roomService.updateStatus(roomId, 'calling');
 
     logger.info(`Call initiated by ${user.name} (${user.role}) in room ${roomId}`);
 
@@ -46,13 +46,13 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
   /**
    * ANSWER CALL (Answer SDP)
    */
-  socket.on(SOCKET_EVENTS.ANSWER_CALL, (payload: SignalingAnswerPayload) => {
+  socket.on(SOCKET_EVENTS.ANSWER_CALL, async (payload: SignalingAnswerPayload) => {
     const { roomId, sdp } = payload;
     const user = socket.user;
 
     if (!user) return;
 
-    roomService.updateStatus(roomId, 'ongoing');
+    await roomService.updateStatus(roomId, 'ongoing');
     logger.info(`Call accepted by ${user.name} in room ${roomId}`);
 
     // Send answer back to the other peer in the room
@@ -67,12 +67,12 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
   /**
    * REJECT CALL
    */
-  socket.on(SOCKET_EVENTS.REJECT_CALL, ({ roomId, reason }: { roomId: string; reason?: string }) => {
+  socket.on(SOCKET_EVENTS.REJECT_CALL, async ({ roomId, reason }: { roomId: string; reason?: string }) => {
     const user = socket.user;
     if (!user) return;
 
     logger.info(`Call rejected by ${user.name} in room ${roomId}. Reason: ${reason || 'Busy'}`);
-    roomService.updateStatus(roomId, 'idle');
+    await roomService.updateStatus(roomId, 'idle');
 
     socket.to(roomId).emit(SOCKET_EVENTS.CALL_REJECTED, {
       roomId,
@@ -89,7 +89,7 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
     if (!user) return;
 
     logger.info(`Call ended by ${user.name} in room ${roomId}`);
-    const endedRoom = roomService.endCall(roomId);
+    const endedRoom = await roomService.endCall(roomId);
 
     io.to(roomId).emit(SOCKET_EVENTS.CALL_ENDED, {
       roomId,
@@ -110,7 +110,6 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
 
     if (!candidate || !roomId) return;
 
-    // Relay ICE candidate directly to the peer in the room
     socket.to(roomId).emit(SOCKET_EVENTS.ICE_CANDIDATE, {
       roomId,
       fromSocketId: socket.id,
@@ -121,13 +120,13 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
   /**
    * TOGGLE MEDIA (Mute Audio / Stop Video)
    */
-  socket.on(SOCKET_EVENTS.MEDIA_TOGGLE, (payload: MediaTogglePayload) => {
+  socket.on(SOCKET_EVENTS.MEDIA_TOGGLE, async (payload: MediaTogglePayload) => {
     const { roomId, type, enabled } = payload;
     const user = socket.user;
 
     if (!user || !roomId) return;
 
-    roomService.updateParticipantMedia(roomId, socket.id, {
+    await roomService.updateParticipantMedia(roomId, socket.id, {
       ...(type === 'audio' && { isAudioMuted: !enabled }),
       ...(type === 'video' && { isVideoStopped: !enabled }),
     });
@@ -143,11 +142,11 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
   /**
    * SCREEN SHARE STATE TOGGLE
    */
-  socket.on(SOCKET_EVENTS.SCREEN_SHARE, ({ roomId, isSharing }: { roomId: string; isSharing: boolean }) => {
+  socket.on(SOCKET_EVENTS.SCREEN_SHARE, async ({ roomId, isSharing }: { roomId: string; isSharing: boolean }) => {
     const user = socket.user;
     if (!user || !roomId) return;
 
-    roomService.updateParticipantMedia(roomId, socket.id, { isScreenSharing: isSharing });
+    await roomService.updateParticipantMedia(roomId, socket.id, { isScreenSharing: isSharing });
 
     socket.to(roomId).emit(SOCKET_EVENTS.SCREEN_SHARE, {
       roomId,

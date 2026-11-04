@@ -189,3 +189,4 @@ $$\text{durationSeconds} = \begin{cases}
    ```
 3. Issue HTTP POST to `${MAIN_BACKEND_URL}/api/consultations/call-ended` with `x-service-api-key`.
 4. Wrap in `try/catch` with non-blocking logging so temporary network partitions do not throw unhandled promise rejections.
+

@@ -1,6 +1,7 @@
 import { env } from '../config/env.js';
 import { logger } from '../config/logger.js';
 import { ConsultationRoom } from '../types/room.types.js';
+import { ConsultationModel } from '../models/consultation.model.js';
 
 export interface CallSummaryPayload {
   roomId: string;
@@ -47,6 +48,15 @@ class MainBackendSyncService {
         );
       } else {
         logger.info(`Successfully synced call conclusion for room ${room.roomId} with main backend`);
+
+        // Update sync state in MongoDB
+        await ConsultationModel.updateOne(
+          { roomId: room.roomId },
+          {
+            isSyncedWithMainBackend: true,
+            syncedAt: new Date(),
+          }
+        );
       }
     } catch (error: any) {
       // Log warning but don't crash sub-backend if main backend is temporarily offline

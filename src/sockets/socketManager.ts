@@ -37,23 +37,23 @@ export const initializeSocketIO = (httpServer: HttpServer): SocketIOServer => {
     /**
      * JOIN CONSULTATION ROOM
      */
-    socket.on(SOCKET_EVENTS.JOIN_ROOM, ({ roomId }: { roomId: string }) => {
+    socket.on(SOCKET_EVENTS.JOIN_ROOM, async ({ roomId }: { roomId: string }) => {
       if (!roomId || !user) {
         socket.emit(SOCKET_EVENTS.ERROR, { message: 'Invalid room join payload' });
         return;
       }
 
-      // Check if room exists; if not, create it dynamically
-      let room = roomService.getRoom(roomId);
+      // Check if room exists; if not, create it dynamically in MongoDB
+      let room = await roomService.getRoom(roomId);
       if (!room) {
-        room = roomService.createRoom({
+        room = await roomService.createRoom({
           roomId,
           doctorId: user.role === 'doctor' ? user.id : 'pending_doctor',
           patientId: user.role === 'patient' ? user.id : 'pending_patient',
         });
       }
 
-      // Check room capacity (consultation is primarily 1 doctor + 1 patient = 2 active peers)
+      // Check room capacity
       if (room.participants.size >= 4) {
         socket.emit(SOCKET_EVENTS.ROOM_FULL, { message: 'Consultation room is currently full' });
         return;
@@ -74,7 +74,7 @@ export const initializeSocketIO = (httpServer: HttpServer): SocketIOServer => {
         isScreenSharing: false,
       };
 
-      const updatedRoom = roomService.addParticipant(roomId, participant);
+      const updatedRoom = await roomService.addParticipant(roomId, participant);
 
       logger.info(`User ${user.name} joined room ${roomId}. Total participants: ${updatedRoom.participants.size}`);
 
@@ -95,10 +95,10 @@ export const initializeSocketIO = (httpServer: HttpServer): SocketIOServer => {
     /**
      * LEAVE CONSULTATION ROOM
      */
-    socket.on(SOCKET_EVENTS.LEAVE_ROOM, ({ roomId }: { roomId: string }) => {
+    socket.on(SOCKET_EVENTS.LEAVE_ROOM, async ({ roomId }: { roomId: string }) => {
       if (!roomId) return;
 
-      const removedParticipant = roomService.removeParticipant(roomId, socket.id);
+      const removedParticipant = await roomService.removeParticipant(roomId, socket.id);
       socket.leave(roomId);
       socket.roomId = undefined;
 
@@ -125,7 +125,7 @@ export const initializeSocketIO = (httpServer: HttpServer): SocketIOServer => {
       logger.info(`Client disconnected: ${socket.id} (${reason})`);
 
       if (socket.roomId) {
-        const removed = roomService.removeParticipant(socket.roomId, socket.id);
+        const removed = await roomService.removeParticipant(socket.roomId, socket.id);
         if (removed) {
           socket.to(socket.roomId).emit(SOCKET_EVENTS.USER_LEFT, {
             userId: removed.userId,
@@ -134,7 +134,7 @@ export const initializeSocketIO = (httpServer: HttpServer): SocketIOServer => {
           });
 
           // If room ended upon participant departure, sync with main backend
-          const currentRoom = roomService.getRoom(socket.roomId);
+          const currentRoom = await roomService.getRoom(socket.roomId);
           if (currentRoom && currentRoom.status === 'ended') {
             await mainBackendSyncService.notifyCallEnded(currentRoom);
           }

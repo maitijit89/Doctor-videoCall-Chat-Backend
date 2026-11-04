@@ -2,9 +2,13 @@ import http from 'http';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
+import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { initializeSocketIO } from './sockets/socketManager.js';
 
 const startServer = async () => {
+  // Connect to MongoDB
+  await connectDatabase();
+
   const app = createApp();
   const httpServer = http.createServer(app);
 
@@ -16,6 +20,7 @@ const startServer = async () => {
     logger.info(`🚀 Doctor Video Call & Chat Sub-Backend Service`);
     logger.info(`📡 Server running on http://localhost:${env.PORT}`);
     logger.info(`🌍 Environment: ${env.NODE_ENV}`);
+    logger.info(`🍃 MongoDB Database Connected`);
     logger.info(`💬 Socket.IO Real-Time Engine Ready`);
     logger.info(`🏥 Health check: http://localhost:${env.PORT}/api/v1/health`);
     logger.info(`🔗 Main Backend Link: ${env.MAIN_BACKEND_URL}`);
@@ -23,16 +28,20 @@ const startServer = async () => {
   });
 
   // Graceful shutdown handler
-  const shutdown = (signal: string) => {
+  const shutdown = async (signal: string) => {
     logger.warn(`Received ${signal}. Initiating graceful shutdown...`);
 
-    // Stop accepting new connections
-    server.close(() => {
+    // Stop accepting new HTTP connections
+    server.close(async () => {
       logger.info('HTTP server closed.');
 
       // Close all Socket.IO client connections
-      io.close(() => {
+      io.close(async () => {
         logger.info('Socket.IO connections closed.');
+
+        // Close MongoDB connection pool
+        await disconnectDatabase();
+
         logger.info('Process terminated gracefully.');
         process.exit(0);
       });
@@ -62,4 +71,3 @@ startServer().catch((err) => {
   logger.error('Failed to start server:', err);
   process.exit(1);
 });
-

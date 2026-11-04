@@ -138,3 +138,4 @@ If the calculated signature does not match the header, the request is rejected i
    - For high-volume multi-instance deployments, the in-memory `RoomService` and Socket.IO manager can be backed by `@socket.io/redis-adapter` and Redis Key-Value store with zero application code refactoring.
 3. **Graceful Shutdown**:
    - Listens on `SIGTERM` and `SIGINT` to gracefully terminate open socket connections, flush Winston logs, and finish pending HTTP requests before exiting with code 0.
+

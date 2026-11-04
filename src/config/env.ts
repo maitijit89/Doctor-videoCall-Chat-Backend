@@ -10,6 +10,7 @@ const envSchema = z.object({
     .string()
     .default('5001')
     .transform((val) => parseInt(val, 10)),
+  MONGODB_URI: z.string().default('mongodb://127.0.0.1:27017/doctor_videocall_db'),
   CORS_ORIGIN: z.string().default('*'),
   JWT_SECRET: z.string().min(8, 'JWT_SECRET must be at least 8 characters long'),
   MAIN_BACKEND_URL: z.string().url().default('http://localhost:5000'),

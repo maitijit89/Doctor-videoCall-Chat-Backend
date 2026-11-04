@@ -10,22 +10,22 @@ export const getChatHistory = async (req: Request, res: Response): Promise<void>
   const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
   const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
 
-  const room = roomService.getRoom(roomId);
+  const room = await roomService.getRoom(roomId);
   if (!room) {
     throw ApiError.notFound(`Consultation room ${roomId} not found`);
   }
 
   // If user is authenticated, ensure they belong to this room
-  if (req.user && !roomService.validateAccess(roomId, req.user.id)) {
+  if (req.user && !(await roomService.validateAccess(roomId, req.user.id))) {
     throw ApiError.forbidden('You are not authorized to view messages in this consultation room');
   }
 
-  const result = chatService.getMessages(roomId, limit, page);
+  const result = await chatService.getMessages(roomId, limit, page);
 
   res.status(StatusCodes.OK).json(
     ApiResponse.success(
       result.messages,
-      'Chat history retrieved successfully',
+      'Chat history retrieved successfully from MongoDB',
       StatusCodes.OK
     )
   );

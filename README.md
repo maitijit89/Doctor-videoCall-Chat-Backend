@@ -1,7 +1,17 @@
 # 🩺 Doctor Video Call & Consultation Chat Sub-Backend
-### Integrated with ZEGOCLOUD (Video Calling) & COMETCHAT (In-App Messaging)
+### Integrated with ZEGOCLOUD (Video Calling), COMETCHAT (In-App Messaging) & MongoDB
 
-An enterprise-grade, high-concurrency **Sub-Backend Microservice** built with **Node.js, Express, TypeScript, ZEGOCLOUD, COMETCHAT, and Socket.IO** designed specifically for post-booking doctor consultations and real-time patient-doctor communication.
+An enterprise-grade, high-concurrency **Sub-Backend Microservice** built with **Node.js, Express, TypeScript, MongoDB (Mongoose), ZEGOCLOUD, COMETCHAT, and Socket.IO** designed specifically for post-booking doctor consultations and real-time patient-doctor communication.
+
+---
+
+## 🍃 MongoDB Persistence Layer
+
+The service persists all consultation sessions, chat history, participant presence, and duration audit logs to **MongoDB**:
+
+* **`Consultations` Collection**: Stores consultation sessions (`roomId`, `bookingId`, `doctorId`, `patientId`, `status`, `startedAt`, `endedAt`, `durationSeconds`, `participants`, `isSyncedWithMainBackend`).
+* **`ChatMessages` Collection**: Stores consultation chat history with compound index `{ roomId: 1, createdAt: -1 }` for paginated retrieval.
+* **`CallLogs` Collection**: Stores lifecycle audit events (`initiated`, `accepted`, `rejected`, `ended`, `webhook_received`).
 
 ---
 

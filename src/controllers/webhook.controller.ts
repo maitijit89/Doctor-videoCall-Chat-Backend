@@ -32,7 +32,7 @@ export const handleZegoWebhook = async (req: Request, res: Response): Promise<vo
     const roomId = room_id || req.body.roomId;
     if (roomId) {
       logger.info(`ZEGOCLOUD room closed: ${roomId}. Ending call session...`);
-      const endedRoom = roomService.endCall(roomId);
+      const endedRoom = await roomService.endCall(roomId);
 
       if (endedRoom) {
         await mainBackendSyncService.notifyCallEnded(endedRoom);

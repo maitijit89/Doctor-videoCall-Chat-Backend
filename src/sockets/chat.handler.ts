@@ -9,7 +9,7 @@ export const registerChatHandlers = (_io: Server, socket: AuthenticatedSocket): 
   /**
    * SEND CHAT MESSAGE
    */
-  socket.on(SOCKET_EVENTS.SEND_MESSAGE, (dto: SendMessageDTO) => {
+  socket.on(SOCKET_EVENTS.SEND_MESSAGE, async (dto: SendMessageDTO) => {
     const user = socket.user;
     if (!user) {
       socket.emit(SOCKET_EVENTS.ERROR, { message: 'Unauthorized user' });
@@ -21,14 +21,14 @@ export const registerChatHandlers = (_io: Server, socket: AuthenticatedSocket): 
       return;
     }
 
-    const savedMessage = chatService.saveMessage(dto, user);
+    const savedMessage = await chatService.saveMessage(dto, user);
 
     logger.debug(`Broadcast message to room ${dto.roomId} by ${user.name}`);
 
-    // Broadcast message to everyone in the room (including sender confirmation if needed)
+    // Broadcast message to everyone in the room
     socket.to(dto.roomId).emit(SOCKET_EVENTS.RECEIVE_MESSAGE, savedMessage);
 
-    // Also emit back to sender with acknowledgement ID
+    // Also emit back to sender with acknowledgement
     socket.emit(SOCKET_EVENTS.RECEIVE_MESSAGE, savedMessage);
   });
 
@@ -65,11 +65,11 @@ export const registerChatHandlers = (_io: Server, socket: AuthenticatedSocket): 
   /**
    * MESSAGE READ RECEIPT
    */
-  socket.on(SOCKET_EVENTS.MESSAGE_READ, ({ roomId }: { roomId: string }) => {
+  socket.on(SOCKET_EVENTS.MESSAGE_READ, async ({ roomId }: { roomId: string }) => {
     const user = socket.user;
     if (!user || !roomId) return;
 
-    chatService.markAsRead(roomId, user.id);
+    await chatService.markAsRead(roomId, user.id);
 
     socket.to(roomId).emit(SOCKET_EVENTS.MESSAGE_READ, {
       roomId,
