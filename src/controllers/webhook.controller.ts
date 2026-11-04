@@ -47,3 +47,4 @@ export const handleCometChatWebhook = async (req: Request, res: Response): Promi
   logger.info('Received COMETCHAT webhook event:', req.body);
   res.status(StatusCodes.OK).json(ApiResponse.success(null, 'CometChat callback received'));
 };
+

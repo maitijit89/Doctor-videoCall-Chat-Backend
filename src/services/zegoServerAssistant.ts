@@ -137,3 +137,4 @@ export function verifyZegoCallbackSignature(
 
   return calculatedSig.toLowerCase() === signature.toLowerCase();
 }
+

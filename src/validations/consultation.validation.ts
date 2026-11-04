@@ -31,3 +31,4 @@ export const getZegoTokenSchema = z.object({
     userName: z.string().optional(),
   }),
 });
+

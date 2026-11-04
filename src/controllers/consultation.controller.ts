@@ -47,3 +47,4 @@ export const getVideoCallToken = async (req: Request, res: Response): Promise<vo
     )
   );
 };
+
