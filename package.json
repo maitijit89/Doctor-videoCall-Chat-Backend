@@ -10,7 +10,8 @@
     "start:prod": "pm2 start ecosystem.config.cjs --env production",
     "dev": "tsx watch src/server.ts",
     "lint": "tsc --noEmit",
-    "test": "node --test --import tsx tests/**/*.test.ts"
+    "test": "node --test --import tsx tests/**/*.test.ts",
+    "verify": "tsx scripts/verify-all.ts"
   },
   "keywords": [
     "nodejs",
