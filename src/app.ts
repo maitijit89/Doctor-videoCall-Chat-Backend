@@ -91,7 +91,27 @@ export const createApp = (): Application => {
       status: 'active',
       database: 'MongoDB Atlas',
       documentation: '/api/v1/health',
+      ping: '/ping',
     });
+  });
+
+  // Top-level fast alive ping for uptime monitors, health checks, and Docker/K8s
+  app.get('/ping', (_req: Request, res: Response) => {
+    res.status(200).json({
+      status: 'alive',
+      message: 'pong',
+      service: 'doctor-videocall-chat-service',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: Math.floor(process.uptime()),
+    });
+  });
+
+  app.get('/alive', (_req: Request, res: Response) => {
+    res.status(200).send('OK');
+  });
+
+  app.get('/healthz', (_req: Request, res: Response) => {
+    res.status(200).send('OK');
   });
 
   // Mount API v1 routes

@@ -51,3 +51,24 @@ export const getMetrics = (_req: Request, res: Response): void => {
 
   res.status(StatusCodes.OK).json(ApiResponse.success(metrics, 'System metrics retrieved'));
 };
+
+/**
+ * Ultra-fast alive ping endpoint for load balancers, uptime monitoring,
+ * and container orchestrators.
+ */
+export const getPing = (_req: Request, res: Response): void => {
+  res.status(StatusCodes.OK).json({
+    status: 'alive',
+    message: 'pong',
+    service: 'doctor-videocall-chat-service',
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
+  });
+};
+
+/**
+ * Minimal liveness probe for Kubernetes / Docker Swarm (returns 200 OK)
+ */
+export const getLiveness = (_req: Request, res: Response): void => {
+  res.status(StatusCodes.OK).send('OK');
+};

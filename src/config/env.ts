@@ -36,6 +36,9 @@ const envSchema = z.object({
   TURN_SERVER_URL: z.string().optional(),
   TURN_SERVER_USERNAME: z.string().optional(),
   TURN_SERVER_CREDENTIAL: z.string().optional(),
+
+  // Optional Self Keep-Alive Ping URL (for Render/Fly/Railway to prevent sleeping)
+  KEEP_ALIVE_URL: z.string().optional(),
 });
 
 const parseEnv = () => {

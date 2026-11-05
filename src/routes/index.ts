@@ -6,8 +6,14 @@ import webrtcRoutes from './webrtc.routes.js';
 import consultationRoutes from './consultation.routes.js';
 import webhookRoutes from './webhook.routes.js';
 import doctorRoutes from './doctor.routes.js';
+import { getPing, getLiveness } from '../controllers/health.controller.js';
 
 const router = Router();
+
+// Fast alive / ping routes
+router.get('/ping', getPing);
+router.get('/alive', getPing);
+router.get('/healthz', getLiveness);
 
 router.use('/health', healthRoutes);
 router.use('/consultations', consultationRoutes);

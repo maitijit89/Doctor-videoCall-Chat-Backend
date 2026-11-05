@@ -42,3 +42,4 @@ test('Security: ReDoS regex character sanitizer properly neutralizes nested quan
   assert.ok(safeRegex.test('(a+)+$'));
   assert.ok(!safeRegex.test('aaaaaaaaaaaaaaaaaaaaaaaaaaaa!'));
 });
+

@@ -79,6 +79,16 @@ async function runAllChecks() {
   const testDoctorId = 'doc_e2e_' + Date.now();
   const testPatientId = 'patient_e2e_' + Date.now();
 
+  // Test 0: Fast Alive Ping Endpoints (/ping & /alive)
+  try {
+    const pingRes = await request('GET', '/ping');
+    const aliveRes = await request('GET', '/alive');
+    const isAlive = pingRes.status === 200 && pingRes.data?.status === 'alive' && aliveRes.status === 200;
+    record('Alive Ping & Liveness Probe (/ping & /alive)', isAlive, `Status: ${pingRes.data?.status}, Message: ${pingRes.data?.message}, Uptime: ${pingRes.data?.uptimeSeconds}s`);
+  } catch (err: any) {
+    record('Alive Ping & Liveness Probe (/ping & /alive)', false, undefined, err.message);
+  }
+
   // Test 1: Health Check Endpoint
   try {
     const res = await request('GET', '/api/v1/health');

@@ -41,6 +41,17 @@ export const initializeSocketIO = (httpServer: HttpServer): SocketIOServer => {
     }
 
     /**
+     * WEBSOCKET ALIVE PING / RTT LATENCY CHECK
+     */
+    socket.on('ping', (clientData?: any) => {
+      socket.emit('pong', {
+        status: 'alive',
+        serverTimestamp: Date.now(),
+        clientEcho: clientData,
+      });
+    });
+
+    /**
      * DOCTOR PRESENCE / HEARTBEAT
      */
     socket.on('doctor:heartbeat', async () => {

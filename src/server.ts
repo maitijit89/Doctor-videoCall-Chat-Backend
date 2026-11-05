@@ -4,6 +4,7 @@ import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
 import { initializeSocketIO } from './sockets/socketManager.js';
+import { keepAliveService } from './services/keepAlive.service.js';
 
 const startServer = async () => {
   // Connect to MongoDB
@@ -15,6 +16,9 @@ const startServer = async () => {
   // Initialize Socket.IO Real-Time Engine
   const io = initializeSocketIO(httpServer);
 
+  // Start Keep-Alive self-pinger if configured
+  keepAliveService.start();
+
   const server = httpServer.listen(env.PORT, () => {
     logger.info(`=================================================`);
     logger.info(`🚀 Doctor Video Call & Chat Sub-Backend Service`);
@@ -23,6 +27,7 @@ const startServer = async () => {
     logger.info(`🍃 MongoDB Database Connected`);
     logger.info(`💬 Socket.IO Real-Time Engine Ready`);
     logger.info(`🏥 Health check: http://localhost:${env.PORT}/api/v1/health`);
+    logger.info(`⚡ Alive Ping:   http://localhost:${env.PORT}/ping (or /alive)`);
     logger.info(`🔗 Main Backend Link: ${env.MAIN_BACKEND_URL}`);
     logger.info(`=================================================`);
   });
@@ -30,6 +35,9 @@ const startServer = async () => {
   // Graceful shutdown handler
   const shutdown = async (signal: string) => {
     logger.warn(`Received ${signal}. Initiating graceful shutdown...`);
+
+    // Stop keep-alive service
+    keepAliveService.stop();
 
     // Stop accepting new HTTP connections
     server.close(async () => {
