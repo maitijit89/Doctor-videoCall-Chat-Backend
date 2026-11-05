@@ -33,3 +33,4 @@ test('Vercel Handler: Restores original URL when Vercel rewrites request to /api
   const originalHandler = handler;
   assert.strictEqual(typeof originalHandler, 'function');
 });
+
