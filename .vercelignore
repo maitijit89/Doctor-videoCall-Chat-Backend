@@ -1,0 +1,8 @@
+.git
+.gemini
+tests
+*.log
+scripts
+.env
+.env.*
+.npmrc

@@ -2,7 +2,17 @@ import mongoose from 'mongoose';
 import { env } from './env.js';
 import { logger } from './logger.js';
 
+let cachedConnectionPromise: Promise<typeof mongoose> | null = null;
+
 export const connectDatabase = async (): Promise<typeof mongoose> => {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose;
+  }
+
+  if (cachedConnectionPromise) {
+    return cachedConnectionPromise;
+  }
+
   try {
     mongoose.set('strictQuery', true);
 
@@ -23,7 +33,7 @@ export const connectDatabase = async (): Promise<typeof mongoose> => {
     });
 
     // Production-tuned connection pool options
-    const conn = await mongoose.connect(env.MONGODB_URI, {
+    cachedConnectionPromise = mongoose.connect(env.MONGODB_URI, {
       autoIndex: env.NODE_ENV !== 'production', // Build indexes in dev, rely on migrations/manual in high-scale prod
       maxPoolSize: 50,
       minPoolSize: 10,
@@ -34,6 +44,8 @@ export const connectDatabase = async (): Promise<typeof mongoose> => {
       retryWrites: true,
       w: 'majority',
     });
+
+    const conn = await cachedConnectionPromise;
 
     logger.info(`🍃 MongoDB Host: ${conn.connection.host}, Database: ${conn.connection.name} (Pool: 10-50)`);
     return conn;
