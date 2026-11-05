@@ -150,3 +150,4 @@ Once Vercel assigns your URL (e.g. `https://doctor-videocall-chat-backend.vercel
    ```env
    SUB_BACKEND_URL=https://<your-project>.vercel.app
    ```
+
