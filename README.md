@@ -10,7 +10,8 @@ An enterprise-grade, high-concurrency **Sub-Backend Microservice** built with **
 The service persists all consultation sessions, chat history, participant presence, and duration audit logs to **MongoDB**:
 
 * **`Consultations` Collection**: Stores consultation sessions (`roomId`, `bookingId`, `doctorId`, `patientId`, `status`, `startedAt`, `endedAt`, `durationSeconds`, `participants`, `isSyncedWithMainBackend`).
-* **`ChatMessages` Collection**: Stores consultation chat history with compound index `{ roomId: 1, createdAt: -1 }` for paginated retrieval.
+* **`ChatMessages` Collection**: Stores consultation chat history with text search index and compound index `{ roomId: 1, createdAt: -1 }`.
+* **`DoctorPresence` Collection**: Real-time doctor availability status (`online`, `busy`, `offline`) with heartbeat expiration.
 * **`CallLogs` Collection**: Stores lifecycle audit events (`initiated`, `accepted`, `rejected`, `ended`, `webhook_received`).
 
 ---
@@ -268,12 +269,19 @@ console.log('Message sent:', sentMessage);
 # Start development server with live reload
 npm run dev
 
-# Compile TypeScript production build into dist/
+# 2. Run unit & cryptographic test suite
+npm test
+
+# 3. Compile strict TypeScript production build into dist/
 npm run build
 
-# Start production server
+# 4. Start production server
 npm start
 
-# Type check without emitting files
+# 5. Run PM2 Multi-Core Production Cluster
+npm run start:prod
+# or: pm2 start ecosystem.config.cjs --env production
+
+# 6. Type check without emitting files
 npm run lint
 ```
