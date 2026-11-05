@@ -76,3 +76,4 @@ class DoctorPresenceService {
 }
 
 export const doctorPresenceService = new DoctorPresenceService();
+

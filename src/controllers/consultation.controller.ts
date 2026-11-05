@@ -4,6 +4,7 @@ import { consultationService } from '../services/consultation.service.js';
 import { zegoService } from '../services/zego.service.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { ApiError } from '../utils/ApiError.js';
+import { ConsultationModel } from '../models/consultation.model.js';
 
 export const createConsultationSession = async (req: Request, res: Response): Promise<void> => {
   const session = await consultationService.createConsultationSession(req.body);
@@ -39,6 +40,22 @@ export const getVideoCallToken = async (req: Request, res: Response): Promise<vo
   const userId = req.query.userId as string;
   const userName = (req.query.userName as string) || userId;
 
+  // BOLA Protection: Verify consultation exists and user is an authorized participant
+  const consultation = await ConsultationModel.findOne({ roomId });
+  if (!consultation) {
+    throw ApiError.notFound(`Consultation room ${roomId} not found`);
+  }
+
+  const isParty = consultation.doctorId === userId || consultation.patientId === userId;
+  if (!isParty && req.user?.role !== 'admin') {
+    throw ApiError.forbidden('You are not authorized to join or obtain credentials for this consultation room');
+  }
+
+  // Prevent user identity spoofing if authenticated
+  if (req.user && req.user.id !== userId && req.user.role !== 'admin') {
+    throw ApiError.forbidden('User ID does not match authenticated token identity');
+  }
+
   const credentials = zegoService.getCallCredentials(userId, userName, roomId);
 
   res.status(StatusCodes.OK).json(
@@ -52,6 +69,11 @@ export const getVideoCallToken = async (req: Request, res: Response): Promise<vo
 export const getUserConsultations = async (req: Request, res: Response): Promise<void> => {
   const userId = req.params.userId as string;
   const role = req.query.role as 'doctor' | 'patient' | undefined;
+
+  // BOLA Protection: ensure users can only query their own consultations
+  if (req.user && req.user.id !== userId && req.user.role !== 'admin') {
+    throw ApiError.forbidden('You are not authorized to view consultations for other users');
+  }
 
   const consultations = await consultationService.getUserConsultations(userId, role);
 
@@ -69,6 +91,11 @@ export const cancelConsultation = async (req: Request, res: Response): Promise<v
     throw ApiError.badRequest('User ID is required to cancel consultation');
   }
 
+  // Prevent user impersonation if authenticated
+  if (req.user && req.user.id !== userId && req.user.role !== 'admin') {
+    throw ApiError.forbidden('You are not authorized to cancel consultations for other users');
+  }
+
   const cancelled = await consultationService.cancelConsultation(roomId, userId, reason);
 
   res.status(StatusCodes.OK).json(
@@ -84,6 +111,11 @@ export const refreshTokens = async (req: Request, res: Response): Promise<void> 
     throw ApiError.badRequest('User ID is required to refresh tokens');
   }
 
+  // Prevent user impersonation if authenticated
+  if (req.user && req.user.id !== userId && req.user.role !== 'admin') {
+    throw ApiError.forbidden('You are not authorized to refresh tokens for other users');
+  }
+
   const refreshed = await consultationService.refreshTokens(roomId, userId);
 
   res.status(StatusCodes.OK).json(
@@ -93,6 +125,20 @@ export const refreshTokens = async (req: Request, res: Response): Promise<void> 
 
 export const getConsultationLogs = async (req: Request, res: Response): Promise<void> => {
   const roomId = req.params.roomId as string;
+  const userId = (req.query.userId as string) || req.user?.id;
+
+  const consultation = await ConsultationModel.findOne({ roomId });
+  if (!consultation) {
+    throw ApiError.notFound(`Consultation room ${roomId} not found`);
+  }
+
+  if (userId && req.user?.role !== 'admin') {
+    const isParty = consultation.doctorId === userId || consultation.patientId === userId;
+    if (!isParty) {
+      throw ApiError.forbidden('You are not authorized to view audit logs for this consultation');
+    }
+  }
+
   const logs = await consultationService.getConsultationLogs(roomId);
 
   res.status(StatusCodes.OK).json(

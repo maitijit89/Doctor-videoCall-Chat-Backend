@@ -82,12 +82,15 @@ class ChatService {
       return [];
     }
 
+    // Escape regex metacharacters to prevent ReDoS (Regular Expression Denial of Service)
+    const sanitizedSearch = searchText.slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
     const docs = await ChatMessageModel.find({
       roomId,
-      text: { $regex: searchText, $options: 'i' },
+      text: { $regex: sanitizedSearch, $options: 'i' },
     })
       .sort({ createdAt: -1 })
-      .limit(limit)
+      .limit(Math.min(limit, 100))
       .lean();
 
     return docs.map((doc) => ({

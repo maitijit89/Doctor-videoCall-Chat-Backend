@@ -21,6 +21,12 @@ export const registerChatHandlers = (_io: Server, socket: AuthenticatedSocket): 
       return;
     }
 
+    // Verify socket has joined and is authorized for this room
+    if (socket.roomId !== dto.roomId) {
+      socket.emit(SOCKET_EVENTS.ERROR, { message: 'You must join this consultation room before sending messages' });
+      return;
+    }
+
     const savedMessage = await chatService.saveMessage(dto, user);
 
     logger.debug(`Broadcast message to room ${dto.roomId} by ${user.name}`);

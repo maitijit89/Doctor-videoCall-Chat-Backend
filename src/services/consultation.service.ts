@@ -161,6 +161,11 @@ class ConsultationService {
       throw ApiError.notFound(`Consultation room ${roomId} not found`);
     }
 
+    const isAuthorized = consultation.doctorId === userId || consultation.patientId === userId;
+    if (!isAuthorized) {
+      throw ApiError.forbidden('You are not authorized to cancel this consultation');
+    }
+
     consultation.status = 'ended';
     consultation.endedAt = new Date();
     consultation.metadata = {

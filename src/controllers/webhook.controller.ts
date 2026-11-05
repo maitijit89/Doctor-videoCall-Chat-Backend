@@ -13,17 +13,31 @@ export const handleZegoWebhook = async (req: Request, res: Response): Promise<vo
     signature?: string;
   };
 
-  logger.info('Received ZEGOCLOUD webhook event:', req.body);
-
-  // Verify signature if query params are present
-  if (nonce && timestamp && signature) {
-    const isValid = zegoService.verifyWebhook(nonce, timestamp, signature);
-    if (!isValid) {
-      logger.warn('ZEGOCLOUD webhook signature verification failed.');
-      res.status(StatusCodes.UNAUTHORIZED).json({ message: 'Invalid webhook signature' });
-      return;
-    }
+  // Reject requests without mandatory cryptographic signature parameters
+  if (!nonce || !timestamp || !signature) {
+    logger.warn('ZEGOCLOUD webhook rejected: missing signature verification parameters.');
+    res.status(StatusCodes.UNAUTHORIZED).json({ message: 'Missing webhook signature parameters' });
+    return;
   }
+
+  // Anti-Replay: Verify timestamp is within 300-second tolerance window
+  const eventTime = parseInt(timestamp, 10);
+  const now = Math.floor(Date.now() / 1000);
+  if (isNaN(eventTime) || Math.abs(now - eventTime) > 300) {
+    logger.warn(`ZEGOCLOUD webhook replay detected or expired timestamp: ${timestamp} (skew: ${now - eventTime}s)`);
+    res.status(StatusCodes.UNAUTHORIZED).json({ message: 'Webhook timestamp expired / replay detected' });
+    return;
+  }
+
+  // Cryptographic constant-time signature verification
+  const isValid = zegoService.verifyWebhook(nonce, timestamp, signature);
+  if (!isValid) {
+    logger.warn('ZEGOCLOUD webhook signature verification failed.');
+    res.status(StatusCodes.UNAUTHORIZED).json({ message: 'Invalid webhook signature' });
+    return;
+  }
+
+  logger.info('Received verified ZEGOCLOUD webhook event:', req.body);
 
   const { event, room_id } = req.body;
 

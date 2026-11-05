@@ -31,3 +31,4 @@ test('ZEGOCLOUD Webhook signature verification', () => {
   const isInvalid = verifyZegoCallbackSignature(nonce, timestamp, 'wrong_signature', secret);
   assert.strictEqual(isInvalid, false, 'Invalid signature should verify false');
 });
+

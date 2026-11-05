@@ -17,36 +17,38 @@ export const socketAuthMiddleware = (
 
     if (token) {
       try {
-        const decoded = jwt.verify(token, env.JWT_SECRET) as AuthUser;
+        const decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] }) as AuthUser;
         socket.user = decoded;
         return next();
       } catch (err: any) {
-        logger.warn(`Socket JWT verification failed: ${err.message}. Checking mock credentials.`);
+        logger.warn(`Socket JWT verification failed: ${err.message}.`);
       }
     }
 
-    // Support direct user metadata in handshake for testing or dev mode
-    const fallbackUser = socket.handshake.auth?.user;
-    if (fallbackUser && fallbackUser.id && fallbackUser.name) {
-      socket.user = {
-        id: String(fallbackUser.id),
-        name: String(fallbackUser.name),
-        role: (fallbackUser.role as UserRole) || UserRole.PATIENT,
-        avatarUrl: fallbackUser.avatarUrl,
-      };
-      return next();
-    }
+    // In non-production environments only: support direct user metadata for testing
+    if (env.NODE_ENV !== 'production') {
+      const fallbackUser = socket.handshake.auth?.user;
+      if (fallbackUser && fallbackUser.id && fallbackUser.name) {
+        socket.user = {
+          id: String(fallbackUser.id),
+          name: String(fallbackUser.name),
+          role: (fallbackUser.role as UserRole) || UserRole.PATIENT,
+          avatarUrl: fallbackUser.avatarUrl,
+        };
+        return next();
+      }
 
-    // In development mode, allow anonymous demo guest user if none provided
-    if (env.NODE_ENV === 'development') {
-      const demoId = socket.id.substring(0, 6);
-      socket.user = {
-        id: `user_${demoId}`,
-        name: `Guest User ${demoId}`,
-        role: UserRole.PATIENT,
-      };
-      logger.info(`Assigned development guest user: ${socket.user.name} (${socket.user.id})`);
-      return next();
+      // In development mode, allow anonymous demo guest user if none provided
+      if (env.NODE_ENV === 'development') {
+        const demoId = socket.id.substring(0, 6);
+        socket.user = {
+          id: `user_${demoId}`,
+          name: `Guest User ${demoId}`,
+          role: UserRole.PATIENT,
+        };
+        logger.info(`Assigned development guest user: ${socket.user.name} (${socket.user.id})`);
+        return next();
+      }
     }
 
     next(new Error('Authentication failed: Missing or invalid token'));

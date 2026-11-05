@@ -12,6 +12,10 @@ import { mainBackendSyncService } from '../services/mainBackendSync.service.js';
 import { logger } from '../config/logger.js';
 
 export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocket): void => {
+  const isAuthorizedInRoom = (roomId: string): boolean => {
+    return Boolean(socket.roomId && socket.roomId === roomId);
+  };
+
   /**
    * INITIATE CALL (Offer)
    */
@@ -19,8 +23,8 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
     const { roomId, sdp } = payload;
     const user = socket.user;
 
-    if (!user) {
-      socket.emit(SOCKET_EVENTS.ERROR, { message: 'Unauthorized socket user' });
+    if (!user || !isAuthorizedInRoom(roomId)) {
+      socket.emit(SOCKET_EVENTS.ERROR, { message: 'Unauthorized or not joined in this room' });
       return;
     }
 
@@ -50,7 +54,7 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
     const { roomId, sdp } = payload;
     const user = socket.user;
 
-    if (!user) return;
+    if (!user || !isAuthorizedInRoom(roomId)) return;
 
     await roomService.updateStatus(roomId, 'ongoing');
     logger.info(`Call accepted by ${user.name} in room ${roomId}`);
@@ -69,7 +73,7 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
    */
   socket.on(SOCKET_EVENTS.REJECT_CALL, async ({ roomId, reason }: { roomId: string; reason?: string }) => {
     const user = socket.user;
-    if (!user) return;
+    if (!user || !isAuthorizedInRoom(roomId)) return;
 
     logger.info(`Call rejected by ${user.name} in room ${roomId}. Reason: ${reason || 'Busy'}`);
     await roomService.updateStatus(roomId, 'idle');
@@ -86,7 +90,7 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
    */
   socket.on(SOCKET_EVENTS.END_CALL, async ({ roomId }: { roomId: string }) => {
     const user = socket.user;
-    if (!user) return;
+    if (!user || !isAuthorizedInRoom(roomId)) return;
 
     logger.info(`Call ended by ${user.name} in room ${roomId}`);
     const endedRoom = await roomService.endCall(roomId);
@@ -108,7 +112,7 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
   socket.on(SOCKET_EVENTS.ICE_CANDIDATE, (payload: IceCandidatePayload) => {
     const { roomId, candidate } = payload;
 
-    if (!candidate || !roomId) return;
+    if (!candidate || !roomId || !isAuthorizedInRoom(roomId)) return;
 
     socket.to(roomId).emit(SOCKET_EVENTS.ICE_CANDIDATE, {
       roomId,
@@ -124,7 +128,7 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
     const { roomId, type, enabled } = payload;
     const user = socket.user;
 
-    if (!user || !roomId) return;
+    if (!user || !roomId || !isAuthorizedInRoom(roomId)) return;
 
     await roomService.updateParticipantMedia(roomId, socket.id, {
       ...(type === 'audio' && { isAudioMuted: !enabled }),
@@ -144,7 +148,7 @@ export const registerSignalingHandlers = (io: Server, socket: AuthenticatedSocke
    */
   socket.on(SOCKET_EVENTS.SCREEN_SHARE, async ({ roomId, isSharing }: { roomId: string; isSharing: boolean }) => {
     const user = socket.user;
-    if (!user || !roomId) return;
+    if (!user || !roomId || !isAuthorizedInRoom(roomId)) return;
 
     await roomService.updateParticipantMedia(roomId, socket.id, { isScreenSharing: isSharing });
 

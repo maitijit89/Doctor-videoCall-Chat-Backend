@@ -36,6 +36,16 @@ export const searchChatHistory = async (req: Request, res: Response): Promise<vo
   const query = (req.query.q as string) || '';
   const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
 
+  const room = await roomService.getRoom(roomId);
+  if (!room) {
+    throw ApiError.notFound(`Consultation room ${roomId} not found`);
+  }
+
+  // Authorization check: if authenticated, verify room access
+  if (req.user && !(await roomService.validateAccess(roomId, req.user.id))) {
+    throw ApiError.forbidden('You are not authorized to search messages in this consultation room');
+  }
+
   const messages = await chatService.searchMessages(roomId, query, limit);
 
   res.status(StatusCodes.OK).json(
@@ -52,6 +62,11 @@ export const deleteChatMessage = async (req: Request, res: Response): Promise<vo
     throw ApiError.badRequest('User ID is required to delete message');
   }
 
+  // Prevent user impersonation if authenticated
+  if (req.user && req.user.id !== userId && req.user.role !== 'admin') {
+    throw ApiError.forbidden('You are not authorized to delete messages for other users');
+  }
+
   await chatService.deleteMessage(roomId, messageId, userId);
 
   res.status(StatusCodes.OK).json(
@@ -65,6 +80,15 @@ export const createAttachmentUploadConfig = async (req: Request, res: Response):
 
   if (!fileName || !fileType) {
     throw ApiError.badRequest('File name and file type are required');
+  }
+
+  const room = await roomService.getRoom(roomId);
+  if (!room) {
+    throw ApiError.notFound(`Consultation room ${roomId} not found`);
+  }
+
+  if (req.user && !(await roomService.validateAccess(roomId, req.user.id))) {
+    throw ApiError.forbidden('You are not authorized to upload attachments to this consultation room');
   }
 
   const attachment = chatService.generateAttachmentUploadConfig(

@@ -65,14 +65,18 @@ export const initializeSocketIO = (httpServer: HttpServer): SocketIOServer => {
         return;
       }
 
-      // Check if room exists; if not, create it dynamically in MongoDB
-      let room = await roomService.getRoom(roomId);
+      const room = await roomService.getRoom(roomId);
       if (!room) {
-        room = await roomService.createRoom({
-          roomId,
-          doctorId: user.role === 'doctor' ? user.id : 'pending_doctor',
-          patientId: user.role === 'patient' ? user.id : 'pending_patient',
-        });
+        socket.emit(SOCKET_EVENTS.ERROR, { message: `Consultation room ${roomId} not found or inactive` });
+        return;
+      }
+
+      // Enforce BOLA authorization check: participant must be assigned doctor/patient
+      const hasAccess = await roomService.validateAccess(roomId, user.id);
+      if (!hasAccess && user.role !== 'admin') {
+        logger.warn(`Unauthorized join attempt: User ${user.id} (${user.name}) -> Room ${roomId}`);
+        socket.emit(SOCKET_EVENTS.ERROR, { message: 'You are not authorized to enter this consultation room' });
+        return;
       }
 
       // Check room capacity

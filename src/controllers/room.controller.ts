@@ -76,6 +76,20 @@ export const validateAccess = async (req: Request, res: Response): Promise<void>
 
 export const endRoom = async (req: Request, res: Response): Promise<void> => {
   const roomId = req.params.roomId as string;
+  const existingRoom = await roomService.getRoom(roomId);
+
+  if (!existingRoom) {
+    throw ApiError.notFound(`Consultation room ${roomId} not found`);
+  }
+
+  // BOLA Authorization: if user token is provided, verify participant identity
+  if (req.user && req.user.role !== 'admin') {
+    const isParty = existingRoom.doctorId === req.user.id || existingRoom.patientId === req.user.id;
+    if (!isParty) {
+      throw ApiError.forbidden('You are not authorized to end this consultation call');
+    }
+  }
+
   const room = await roomService.endCall(roomId);
 
   if (!room) {

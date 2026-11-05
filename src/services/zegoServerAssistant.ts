@@ -1,4 +1,4 @@
-import { createCipheriv, createHash } from 'crypto';
+import { createCipheriv, createHash, randomInt, randomBytes, timingSafeEqual } from 'crypto';
 
 export enum ZegoErrorCode {
   success = 0,
@@ -17,22 +17,18 @@ export interface ZegoPrivilegePayload {
   stream_id_list?: string[] | null;
 }
 
-function rndNum(a: number, b: number): number {
-  return Math.ceil((a + (b - a)) * Math.random());
-}
-
 function makeNonce(): number {
-  return rndNum(-2147483648, 2147483647);
+  return randomInt(-2147483648, 2147483648);
 }
 
 function makeRandomIv(): string {
-  const str = '0123456789abcdefghijklmnopqrstuvwxyz';
-  const result: string[] = [];
+  const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
+  const bytes = randomBytes(16);
+  let result = '';
   for (let i = 0; i < 16; i++) {
-    const r = Math.floor(Math.random() * str.length);
-    result.push(str.charAt(r));
+    result += chars[bytes[i] % chars.length];
   }
-  return result.join('');
+  return result;
 }
 
 function getAlgorithm(keyBase64: string): string {
@@ -135,6 +131,9 @@ export function verifyZegoCallbackSignature(
   const concatenated = arr.join('');
   const calculatedSig = createHash('sha256').update(concatenated).digest('hex');
 
-  return calculatedSig.toLowerCase() === signature.toLowerCase();
+  const bufA = Buffer.from(calculatedSig.toLowerCase(), 'utf8');
+  const bufB = Buffer.from(signature.toLowerCase(), 'utf8');
+
+  return bufA.length === bufB.length && timingSafeEqual(bufA, bufB);
 }
 

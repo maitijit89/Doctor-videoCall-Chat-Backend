@@ -37,3 +37,4 @@ export const DoctorPresenceModel = mongoose.model<IDoctorPresence>(
   'DoctorPresence',
   DoctorPresenceSchema
 );
+

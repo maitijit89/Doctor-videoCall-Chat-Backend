@@ -22,7 +22,7 @@ export const authenticateJwt = (req: Request, _res: Response, next: NextFunction
   }
 
   try {
-    const decoded = jwt.verify(token, env.JWT_SECRET) as AuthUser;
+    const decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] }) as AuthUser;
     req.user = decoded;
     next();
   } catch (err: any) {
@@ -39,7 +39,7 @@ export const optionalAuthenticateJwt = (req: Request, _res: Response, next: Next
   }
 
   try {
-    const decoded = jwt.verify(token, env.JWT_SECRET) as AuthUser;
+    const decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] }) as AuthUser;
     req.user = decoded;
   } catch {
     // Ignore invalid token on optional auth
