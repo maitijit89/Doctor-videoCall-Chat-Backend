@@ -1,26 +1,26 @@
-import { Server as HttpServer } from 'http';
-import { Server as SocketIOServer } from 'socket.io';
-import { AuthenticatedSocket } from '../types/socket.types.js';
-import { RoomParticipant } from '../types/room.types.js';
-import { SOCKET_EVENTS } from '../constants/events.js';
-import { socketAuthMiddleware } from './socketAuth.middleware.js';
-import { registerSignalingHandlers } from './signaling.handler.js';
-import { registerChatHandlers } from './chat.handler.js';
-import { roomService } from '../services/room.service.js';
-import { mainBackendSyncService } from '../services/mainBackendSync.service.js';
-import { env } from '../config/env.js';
-import { logger } from '../config/logger.js';
+import { Server as HttpServer } from "http";
+import { Server as SocketIOServer } from "socket.io";
+import { AuthenticatedSocket } from "../types/socket.types.js";
+import { RoomParticipant } from "../types/room.types.js";
+import { SOCKET_EVENTS } from "../constants/events.js";
+import { socketAuthMiddleware } from "./socketAuth.middleware.js";
+import { registerSignalingHandlers } from "./signaling.handler.js";
+import { registerChatHandlers } from "./chat.handler.js";
+import { roomService } from "../services/room.service.js";
+import { mainBackendSyncService } from "../services/mainBackendSync.service.js";
+import { env } from "../config/env.js";
+import { logger } from "../config/logger.js";
 
 export const initializeSocketIO = (httpServer: HttpServer): SocketIOServer => {
   const allowedOrigins =
-    env.CORS_ORIGIN === '*'
-      ? '*'
-      : env.CORS_ORIGIN.split(',').map((origin) => origin.trim());
+    env.CORS_ORIGIN === "*"
+      ? "*"
+      : env.CORS_ORIGIN.split(",").map((origin) => origin.trim());
 
   const io = new SocketIOServer(httpServer, {
     cors: {
       origin: allowedOrigins,
-      methods: ['GET', 'POST'],
+      methods: ["GET", "POST"],
       credentials: true,
     },
     pingTimeout: 60000,
@@ -30,16 +30,20 @@ export const initializeSocketIO = (httpServer: HttpServer): SocketIOServer => {
   // Apply Socket Authentication Middleware
   io.use(socketAuthMiddleware);
 
-  io.on('connection', (socket: AuthenticatedSocket) => {
+  io.on("connection", (socket: AuthenticatedSocket) => {
     const user = socket.user;
-    logger.info(`🔌 Client connected: ${socket.id} (${user?.name} - ${user?.role})`);
+    logger.info(
+      `🔌 Client connected: ${socket.id} (${user?.name} - ${user?.role})`,
+    );
 
     /**
      * JOIN CONSULTATION ROOM
      */
     socket.on(SOCKET_EVENTS.JOIN_ROOM, async ({ roomId }: { roomId: string }) => {
       if (!roomId || !user) {
-        socket.emit(SOCKET_EVENTS.ERROR, { message: 'Invalid room join payload' });
+        socket.emit(SOCKET_EVENTS.ERROR, {
+          message: "Invalid room join payload",
+        });
         return;
       }
 
@@ -48,14 +52,16 @@ export const initializeSocketIO = (httpServer: HttpServer): SocketIOServer => {
       if (!room) {
         room = await roomService.createRoom({
           roomId,
-          doctorId: user.role === 'doctor' ? user.id : 'pending_doctor',
-          patientId: user.role === 'patient' ? user.id : 'pending_patient',
+          doctorId: user.role === "doctor" ? user.id : "pending_doctor",
+          patientId: user.role === "patient" ? user.id : "pending_patient",
         });
       }
 
       // Check room capacity
       if (room.participants.size >= 4) {
-        socket.emit(SOCKET_EVENTS.ROOM_FULL, { message: 'Consultation room is currently full' });
+        socket.emit(SOCKET_EVENTS.ROOM_FULL, {
+          message: "Consultation room is currently full",
+        });
         return;
       }
 
@@ -76,7 +82,9 @@ export const initializeSocketIO = (httpServer: HttpServer): SocketIOServer => {
 
       const updatedRoom = await roomService.addParticipant(roomId, participant);
 
-      logger.info(`User ${user.name} joined room ${roomId}. Total participants: ${updatedRoom.participants.size}`);
+      logger.info(
+        `User ${user.name} joined room ${roomId}. Total participants: ${updatedRoom.participants.size}`,
+      );
 
       // Notify the joining user with current room state and existing participants
       socket.emit(SOCKET_EVENTS.JOIN_ROOM, {
@@ -121,7 +129,7 @@ export const initializeSocketIO = (httpServer: HttpServer): SocketIOServer => {
     /**
      * DISCONNECT CLEANUP
      */
-    socket.on('disconnect', async (reason) => {
+    socket.on("disconnect", async (reason) => {
       logger.info(`Client disconnected: ${socket.id} (${reason})`);
 
       if (socket.roomId) {
@@ -135,7 +143,7 @@ export const initializeSocketIO = (httpServer: HttpServer): SocketIOServer => {
 
           // If room ended upon participant departure, sync with main backend
           const currentRoom = await roomService.getRoom(socket.roomId);
-          if (currentRoom && currentRoom.status === 'ended') {
+          if (currentRoom && currentRoom.status === "ended") {
             await mainBackendSyncService.notifyCallEnded(currentRoom);
           }
         }

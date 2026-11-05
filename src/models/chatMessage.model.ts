@@ -60,3 +60,4 @@ export const ChatMessageModel = mongoose.model<IChatMessage>(
   'ChatMessage',
   ChatMessageSchema
 );
+

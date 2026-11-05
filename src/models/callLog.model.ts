@@ -35,3 +35,4 @@ const CallLogSchema = new Schema<ICallLog>(
 );
 
 export const CallLogModel = mongoose.model<ICallLog>('CallLog', CallLogSchema);
+

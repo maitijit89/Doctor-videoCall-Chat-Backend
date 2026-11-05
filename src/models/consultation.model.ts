@@ -93,3 +93,4 @@ export const ConsultationModel = mongoose.model<IConsultation>(
   'Consultation',
   ConsultationSchema
 );
+
