@@ -7,8 +7,10 @@
     "prebuild": "rimraf dist",
     "build": "tsc",
     "start": "node dist/server.js",
+    "start:prod": "pm2 start ecosystem.config.cjs --env production",
     "dev": "tsx watch src/server.ts",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "node --test --import tsx tests/**/*.test.ts"
   },
   "keywords": [
     "nodejs",
@@ -27,7 +29,9 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.7.3",
     "helmet": "^8.0.0",
+    "hpp": "^0.2.3",
     "http-status-codes": "^2.3.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^9.11.4",
@@ -40,6 +44,7 @@
     "@types/compression": "^1.7.5",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
+    "@types/hpp": "^0.2.7",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^22.13.9",
     "@types/uuid": "^10.0.0",

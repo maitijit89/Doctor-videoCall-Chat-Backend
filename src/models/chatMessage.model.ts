@@ -55,6 +55,8 @@ const ChatMessageSchema = new Schema<IChatMessage>(
 
 // Compound index for fast paginated chat history retrieval
 ChatMessageSchema.index({ roomId: 1, createdAt: -1 });
+// Text index for fast searching within consultation message records
+ChatMessageSchema.index({ text: 'text' });
 
 export const ChatMessageModel = mongoose.model<IChatMessage>(
   'ChatMessage',

@@ -5,6 +5,7 @@ import chatRoutes from './chat.routes.js';
 import webrtcRoutes from './webrtc.routes.js';
 import consultationRoutes from './consultation.routes.js';
 import webhookRoutes from './webhook.routes.js';
+import doctorRoutes from './doctor.routes.js';
 
 const router = Router();
 
@@ -14,5 +15,6 @@ router.use('/rooms', roomRoutes);
 router.use('/chat', chatRoutes);
 router.use('/webrtc', webrtcRoutes);
 router.use('/webhooks', webhookRoutes);
+router.use('/doctors', doctorRoutes);
 
 export default router;

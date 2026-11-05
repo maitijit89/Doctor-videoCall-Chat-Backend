@@ -30,3 +30,51 @@ export const getChatHistory = async (req: Request, res: Response): Promise<void>
     )
   );
 };
+
+export const searchChatHistory = async (req: Request, res: Response): Promise<void> => {
+  const roomId = req.params.roomId as string;
+  const query = (req.query.q as string) || '';
+  const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+
+  const messages = await chatService.searchMessages(roomId, query, limit);
+
+  res.status(StatusCodes.OK).json(
+    ApiResponse.success(messages, 'Search results retrieved successfully')
+  );
+};
+
+export const deleteChatMessage = async (req: Request, res: Response): Promise<void> => {
+  const roomId = req.params.roomId as string;
+  const messageId = req.params.messageId as string;
+  const userId = (req.body.userId as string) || req.user?.id;
+
+  if (!userId) {
+    throw ApiError.badRequest('User ID is required to delete message');
+  }
+
+  await chatService.deleteMessage(roomId, messageId, userId);
+
+  res.status(StatusCodes.OK).json(
+    ApiResponse.success(null, 'Message deleted successfully')
+  );
+};
+
+export const createAttachmentUploadConfig = async (req: Request, res: Response): Promise<void> => {
+  const roomId = req.params.roomId as string;
+  const { fileName, fileType, sizeBytes } = req.body;
+
+  if (!fileName || !fileType) {
+    throw ApiError.badRequest('File name and file type are required');
+  }
+
+  const attachment = chatService.generateAttachmentUploadConfig(
+    roomId,
+    fileName,
+    fileType,
+    sizeBytes || 0
+  );
+
+  res.status(StatusCodes.OK).json(
+    ApiResponse.success(attachment, 'Attachment upload metadata generated')
+  );
+};

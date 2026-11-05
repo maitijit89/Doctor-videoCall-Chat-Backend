@@ -15,10 +15,18 @@ export interface CallSummaryPayload {
 
 class MainBackendSyncService {
   /**
-   * Notify the main Full-Stack backend that a consultation call session has ended
+   * Helper delay function
    */
-  public async notifyCallEnded(room: ConsultationRoom): Promise<void> {
-    if (!env.MAIN_BACKEND_URL) return;
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Notify the main Full-Stack backend that a consultation call session has ended.
+   * Includes automatic exponential backoff retry (up to 3 attempts).
+   */
+  public async notifyCallEnded(room: ConsultationRoom, maxRetries: number = 3): Promise<boolean> {
+    if (!env.MAIN_BACKEND_URL) return false;
 
     const payload: CallSummaryPayload = {
       roomId: room.roomId,
@@ -30,42 +38,66 @@ class MainBackendSyncService {
       durationSeconds: room.durationSeconds,
     };
 
-    try {
-      logger.info(`Notifying main backend at ${env.MAIN_BACKEND_URL}/api/consultations/call-ended`);
+    let attempt = 0;
+    let delayMs = 1000;
 
-      const response = await fetch(`${env.MAIN_BACKEND_URL}/api/consultations/call-ended`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-service-api-key': env.SERVICE_API_KEY,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        logger.warn(
-          `Main backend sync returned status ${response.status} for room ${room.roomId}`
+    while (attempt < maxRetries) {
+      attempt++;
+      try {
+        logger.info(
+          `Syncing call conclusion for room ${room.roomId} (Attempt ${attempt}/${maxRetries}) to ${env.MAIN_BACKEND_URL}/api/consultations/call-ended`
         );
-      } else {
-        logger.info(`Successfully synced call conclusion for room ${room.roomId} with main backend`);
 
-        // Update sync state in MongoDB
-        await ConsultationModel.updateOne(
-          { roomId: room.roomId },
-          {
-            isSyncedWithMainBackend: true,
-            syncedAt: new Date(),
-          }
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+        const response = await fetch(`${env.MAIN_BACKEND_URL}/api/consultations/call-ended`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-service-api-key': env.SERVICE_API_KEY,
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          logger.info(`Successfully synced call conclusion for room ${room.roomId} with main backend.`);
+
+          // Update sync state in MongoDB
+          await ConsultationModel.updateOne(
+            { roomId: room.roomId },
+            {
+              isSyncedWithMainBackend: true,
+              syncedAt: new Date(),
+            }
+          );
+
+          return true;
+        }
+
+        logger.warn(
+          `Main backend sync returned status ${response.status} on attempt ${attempt}`
+        );
+      } catch (error: any) {
+        logger.warn(
+          `Sync attempt ${attempt} failed for room ${room.roomId}: ${error.message}`
         );
       }
-    } catch (error: any) {
-      // Log warning but don't crash sub-backend if main backend is temporarily offline
-      logger.warn(
-        `Failed to reach main backend at ${env.MAIN_BACKEND_URL}: ${error.message}`
-      );
+
+      if (attempt < maxRetries) {
+        // Exponential backoff with jitter
+        const jitter = Math.floor(Math.random() * 500);
+        await this.delay(delayMs + jitter);
+        delayMs *= 2;
+      }
     }
+
+    logger.error(`Failed to sync call conclusion for room ${room.roomId} after ${maxRetries} attempts.`);
+    return false;
   }
 }
 
 export const mainBackendSyncService = new MainBackendSyncService();
-

@@ -1,8 +1,9 @@
 import { roomService } from './room.service.js';
 import { zegoService } from './zego.service.js';
 import { cometChatService } from './cometchat.service.js';
-import { ConsultationModel } from '../models/consultation.model.js';
+import { ConsultationModel, IConsultation } from '../models/consultation.model.js';
 import { CallLogModel } from '../models/callLog.model.js';
+import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../config/logger.js';
 
 export interface CreateConsultationSessionDTO {
@@ -132,6 +133,88 @@ class ConsultationService {
       },
       createdAt: new Date(),
     };
+  }
+
+  /**
+   * Fetch all consultations for a given user (doctor or patient)
+   */
+  public async getUserConsultations(userId: string, role?: 'doctor' | 'patient'): Promise<IConsultation[]> {
+    const query: Record<string, any> = {};
+
+    if (role === 'doctor') {
+      query.doctorId = userId;
+    } else if (role === 'patient') {
+      query.patientId = userId;
+    } else {
+      query.$or = [{ doctorId: userId }, { patientId: userId }];
+    }
+
+    return await ConsultationModel.find(query).sort({ createdAt: -1 }).lean();
+  }
+
+  /**
+   * Cancel an appointment consultation before or during call
+   */
+  public async cancelConsultation(roomId: string, userId: string, reason?: string): Promise<IConsultation> {
+    const consultation = await ConsultationModel.findOne({ roomId });
+    if (!consultation) {
+      throw ApiError.notFound(`Consultation room ${roomId} not found`);
+    }
+
+    consultation.status = 'ended';
+    consultation.endedAt = new Date();
+    consultation.metadata = {
+      ...(consultation.metadata || {}),
+      cancelledBy: userId,
+      cancellationReason: reason || 'Cancelled by user',
+    };
+    await consultation.save();
+
+    await CallLogModel.create({
+      roomId,
+      bookingId: consultation.bookingId,
+      doctorId: consultation.doctorId,
+      patientId: consultation.patientId,
+      eventType: 'ended',
+      byUserId: userId,
+      details: { reason: reason || 'Cancelled' },
+      timestamp: new Date(),
+    });
+
+    return consultation;
+  }
+
+  /**
+   * Refreshes / re-issues ZEGOCLOUD and COMETCHAT tokens for an ongoing session
+   */
+  public async refreshTokens(roomId: string, userId: string): Promise<any> {
+    const consultation = await ConsultationModel.findOne({ roomId });
+    if (!consultation) {
+      throw ApiError.notFound(`Consultation room ${roomId} not found`);
+    }
+
+    const isAuthorized = consultation.doctorId === userId || consultation.patientId === userId;
+    if (!isAuthorized) {
+      throw ApiError.forbidden('You are not authorized for this consultation room');
+    }
+
+    const zegoToken = zegoService.generateRoomToken(userId, roomId);
+    const cometAuthToken = await cometChatService.createAuthToken(userId);
+
+    return {
+      roomId,
+      userId,
+      zegoToken,
+      cometAuthToken,
+      expiresInSeconds: 7200,
+    };
+  }
+
+  /**
+   * Retrieve audit logs for a consultation room
+   */
+  public async getConsultationLogs(roomId: string): Promise<any[]> {
+    return await CallLogModel.find({ roomId }).sort({ timestamp: 1 }).lean();
   }
 
   /**

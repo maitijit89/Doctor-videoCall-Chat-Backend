@@ -1,7 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ChatMessage, SendMessageDTO } from '../types/chat.types.js';
+import { ChatMessage, SendMessageDTO, ChatAttachment } from '../types/chat.types.js';
 import { AuthUser } from '../types/auth.types.js';
 import { ChatMessageModel } from '../models/chatMessage.model.js';
+import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../config/logger.js';
 
 class ChatService {
@@ -9,9 +10,6 @@ class ChatService {
    * Save a new message in MongoDB
    */
   public async saveMessage(dto: SendMessageDTO, user: AuthUser): Promise<ChatMessage> {
-    const messageId = uuidv4();
-
-    // Persist to MongoDB
     const doc = await ChatMessageModel.create({
       roomId: dto.roomId,
       senderId: user.id,
@@ -23,7 +21,7 @@ class ChatService {
     });
 
     const message: ChatMessage = {
-      id: doc._id.toString() || messageId,
+      id: doc._id.toString(),
       roomId: doc.roomId,
       senderId: doc.senderId,
       senderName: doc.senderName,
@@ -73,6 +71,75 @@ class ChatService {
       total,
       page,
       totalPages,
+    };
+  }
+
+  /**
+   * Search messages within a consultation room
+   */
+  public async searchMessages(roomId: string, searchText: string, limit: number = 20): Promise<ChatMessage[]> {
+    if (!searchText || searchText.trim() === '') {
+      return [];
+    }
+
+    const docs = await ChatMessageModel.find({
+      roomId,
+      text: { $regex: searchText, $options: 'i' },
+    })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    return docs.map((doc) => ({
+      id: (doc as any)._id.toString(),
+      roomId: doc.roomId,
+      senderId: doc.senderId,
+      senderName: doc.senderName,
+      senderRole: doc.senderRole,
+      text: doc.text,
+      attachments: doc.attachments,
+      isRead: doc.isRead,
+      createdAt: doc.createdAt,
+    }));
+  }
+
+  /**
+   * Delete or redact a message from consultation history
+   */
+  public async deleteMessage(roomId: string, messageId: string, userId: string): Promise<boolean> {
+    const msg = await ChatMessageModel.findOne({ _id: messageId, roomId });
+    if (!msg) {
+      throw ApiError.notFound('Message not found');
+    }
+
+    if (msg.senderId !== userId) {
+      throw ApiError.forbidden('You are not authorized to delete this message');
+    }
+
+    await ChatMessageModel.deleteOne({ _id: messageId });
+    logger.info(`Message ${messageId} deleted from room ${roomId} by user ${userId}`);
+    return true;
+  }
+
+  /**
+   * Generates metadata for medical document uploads (prescriptions, lab tests)
+   */
+  public generateAttachmentUploadConfig(
+    roomId: string,
+    fileName: string,
+    fileType: string,
+    sizeBytes: number
+  ): ChatAttachment {
+    const attachmentId = uuidv4();
+    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const storagePath = `consultations/${roomId}/${attachmentId}_${sanitizedFileName}`;
+
+    return {
+      id: attachmentId,
+      name: fileName,
+      url: `/uploads/${storagePath}`,
+      fileType,
+      sizeBytes,
     };
   }
 
